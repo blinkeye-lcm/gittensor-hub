@@ -17,11 +17,11 @@ import { IssueLabels } from '@/components/IssueLabels';
 import { formatRelativeTime } from '@/lib/format';
 import { normalizeGitHubBodyMarkdown, renderMarkdownToHtml } from '@/lib/markdown';
 import { useSettings } from '@/lib/settings';
-import type { IssueDto, PullDto } from '@/lib/api-types';
+import type { Issue, Pull } from '@/types/entities';
 
 type ContentTarget =
-  | { kind: 'issue'; owner: string; name: string; number: number; preloaded?: IssueDto }
-  | { kind: 'pull'; owner: string; name: string; number: number; preloaded?: PullDto };
+  | { kind: 'issue'; owner: string; name: string; number: number; preloaded?: Issue }
+  | { kind: 'pull'; owner: string; name: string; number: number; preloaded?: Pull };
 
 interface ContentViewerProps {
   target: ContentTarget;
@@ -30,7 +30,7 @@ interface ContentViewerProps {
   width?: number;
 }
 
-function preserveExistingBody<T extends IssueDto | PullDto>(next: T, current: T | null): T {
+function preserveExistingBody<T extends Issue | Pull>(next: T, current: T | null): T {
   const currentBody = current?.body?.trim() ? current.body : null;
   const nextHasBody = !!next.body?.trim();
   return !nextHasBody && currentBody ? { ...next, body: currentBody } : next;
@@ -41,13 +41,13 @@ type ActiveTab = { kind: 'issue' } | { kind: 'pull'; number: number };
 export default function ContentViewer({ target, mode, onClose, width }: ContentViewerProps) {
   const { settings } = useSettings();
   const targetKey = `${target.kind}:${target.owner}/${target.name}#${target.number}`;
-  const [issueData, setIssueData] = useState<IssueDto | null>(
-    target.kind === 'issue' ? ((target.preloaded as IssueDto | undefined) ?? null) : null
+  const [issueData, setIssueData] = useState<Issue | null>(
+    target.kind === 'issue' ? ((target.preloaded as Issue | undefined) ?? null) : null
   );
-  const [pullData, setPullData] = useState<PullDto | null>(
-    target.kind === 'pull' ? ((target.preloaded as PullDto | undefined) ?? null) : null
+  const [pullData, setPullData] = useState<Pull | null>(
+    target.kind === 'pull' ? ((target.preloaded as Pull | undefined) ?? null) : null
   );
-  const [relatedPRs, setRelatedPRs] = useState<PullDto[]>([]);
+  const [relatedPRs, setRelatedPRs] = useState<Pull[]>([]);
   const [relatedPRsLoaded, setRelatedPRsLoaded] = useState(false);
   const [activeTab, setActiveTab] = useState<ActiveTab>(
     target.kind === 'issue' ? { kind: 'issue' } : { kind: 'pull', number: target.number }
@@ -58,12 +58,12 @@ export default function ContentViewer({ target, mode, onClose, width }: ContentV
   // Reset all state when the underlying target changes
   useEffect(() => {
     if (target.kind === 'issue') {
-      setIssueData((target.preloaded as IssueDto | undefined) ?? null);
+      setIssueData((target.preloaded as Issue | undefined) ?? null);
       setPullData(null);
       setActiveTab({ kind: 'issue' });
     } else {
       setIssueData(null);
-      setPullData((target.preloaded as PullDto | undefined) ?? null);
+      setPullData((target.preloaded as Pull | undefined) ?? null);
       setActiveTab({ kind: 'pull', number: target.number });
     }
     setRelatedPRs([]);
@@ -103,9 +103,9 @@ export default function ContentViewer({ target, mode, onClose, width }: ContentV
       .then((j) => {
         if (fetchedForRef.current !== key) return; // user moved to another target
         if (target.kind === 'issue') {
-          setIssueData((current) => preserveExistingBody(j as IssueDto, current));
+          setIssueData((current) => preserveExistingBody(j as Issue, current));
         } else {
-          setPullData((current) => preserveExistingBody(j as PullDto, current));
+          setPullData((current) => preserveExistingBody(j as Pull, current));
         }
       })
       .catch((e) => {
@@ -124,7 +124,7 @@ export default function ContentViewer({ target, mode, onClose, width }: ContentV
     setRelatedPRsLoaded(false);
     fetch(`/api/related-prs/${target.owner}/${target.name}/${target.number}`)
       .then((r) => r.json())
-      .then((j) => setRelatedPRs(Array.isArray(j.pulls) ? (j.pulls as PullDto[]) : []))
+      .then((j) => setRelatedPRs(Array.isArray(j.pulls) ? (j.pulls as Pull[]) : []))
       .catch(() => setRelatedPRs([]))
       .finally(() => setRelatedPRsLoaded(true));
   }, [targetKey]);
@@ -157,7 +157,7 @@ export default function ContentViewer({ target, mode, onClose, width }: ContentV
     activeTab.kind === 'issue'
       ? { kind: 'issue', owner: target.owner, name: target.name, number: target.number }
       : { kind: 'pull', owner: target.owner, name: target.name, number: activeTab.number };
-  const viewData: IssueDto | PullDto | null =
+  const viewData: Issue | Pull | null =
     activeTab.kind === 'issue' ? issueData : activePR;
 
   const inner = (
@@ -357,7 +357,7 @@ function TabStrip({
   onChange,
 }: {
   issueNumber: number;
-  relatedPRs: PullDto[];
+  relatedPRs: Pull[];
   activeTab: ActiveTab;
   onChange: (next: ActiveTab) => void;
 }) {
@@ -450,7 +450,7 @@ function Header({
   mode,
 }: {
   target: ContentTarget;
-  data: IssueDto | PullDto | null;
+  data: Issue | Pull | null;
   mergedPRCount: number | null;
   onClose: () => void;
   showCloseIcon: boolean;
@@ -496,12 +496,12 @@ function Header({
   const statusNode =
     target.kind === 'issue' ? (
       data && 'state_reason' in data ? (
-        <IssueStatusBadge issue={data as IssueDto} mergedPRCount={mergedPRCount} />
+        <IssueStatusBadge issue={data as Issue} mergedPRCount={mergedPRCount} />
       ) : (
         <IssueOpenedIcon size={16} />
       )
     ) : data ? (
-      <PullStatusBadge pr={data as PullDto} />
+      <PullStatusBadge pr={data as Pull} />
     ) : (
       <GitPullRequestIcon size={16} />
     );
@@ -590,8 +590,8 @@ function Header({
                 {(() => {
                   const assoc =
                     target.kind === 'issue'
-                      ? (data as IssueDto).author_association
-                      : (data as PullDto).author_association;
+                      ? (data as Issue).author_association
+                      : (data as Pull).author_association;
                   if (!assoc || assoc === 'NONE') return null;
                   return (
                     <Label variant="secondary" sx={{ ml: 1, fontSize: '10px' }}>
@@ -605,23 +605,23 @@ function Header({
               <ClockIcon size={12} />
               opened {formatRelativeTime(data.created_at)}
             </Box>
-            {target.kind === 'pull' && (data as PullDto).merged_at && (
-              <Text sx={{ color: 'var(--success-fg)' }}>· merged {formatRelativeTime((data as PullDto).merged_at)}</Text>
+            {target.kind === 'pull' && (data as Pull).merged_at && (
+              <Text sx={{ color: 'var(--success-fg)' }}>· merged {formatRelativeTime((data as Pull).merged_at)}</Text>
             )}
-            {data.closed_at && !(target.kind === 'pull' && (data as PullDto).merged_at) && (
+            {data.closed_at && !(target.kind === 'pull' && (data as Pull).merged_at) && (
               <Text>· closed {formatRelativeTime(data.closed_at)}</Text>
             )}
-            {target.kind === 'issue' && (data as IssueDto).comments > 0 && (
+            {target.kind === 'issue' && (data as Issue).comments > 0 && (
               <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
                 <CommentIcon size={12} />
-                {(data as IssueDto).comments}
+                {(data as Issue).comments}
               </Box>
             )}
           </Box>
         )}
-        {data && target.kind === 'issue' && (data as IssueDto).labels && (data as IssueDto).labels.length > 0 && (
+        {data && target.kind === 'issue' && (data as Issue).labels && (data as Issue).labels.length > 0 && (
           <Box sx={{ display: 'flex', gap: 1, mt: 2, flexWrap: 'wrap' }}>
-            <IssueLabels labels={(data as IssueDto).labels} maxVisible={8} maxLabelWidth={180} wrap />
+            <IssueLabels labels={(data as Issue).labels} maxVisible={8} maxLabelWidth={180} wrap />
           </Box>
         )}
       </Box>
@@ -634,7 +634,7 @@ function Body({
   renderMarkdown,
   kind,
 }: {
-  data: IssueDto | PullDto;
+  data: Issue | Pull;
   renderMarkdown: boolean;
   kind: 'issue' | 'pull';
 }) {

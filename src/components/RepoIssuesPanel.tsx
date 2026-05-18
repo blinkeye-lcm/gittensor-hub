@@ -8,7 +8,7 @@ import { TableRowsSkeleton } from '@/components/Skeleton';
 import Dropdown from '@/components/Dropdown';
 import { IssueLabels } from '@/components/IssueLabels';
 import { SearchIcon, CommentIcon, ClockIcon } from '@primer/octicons-react';
-import type { IssueDto, IssuesResponse } from '@/lib/api-types';
+import type { Issue, IssuesResponse } from '@/types/entities';
 import { IssueStatusBadge } from '@/components/StatusBadge';
 import { formatRelativeTime } from '@/lib/format';
 
@@ -116,7 +116,7 @@ export default function RepoIssuesPanel({ owner, name }: { owner: string; name: 
   );
 }
 
-function IssueRow({ issue, isLast }: { issue: IssueDto; isLast: boolean }) {
+function IssueRow({ issue, isLast }: { issue: Issue; isLast: boolean }) {
   return (
     <Box
       sx={{

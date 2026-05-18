@@ -7,8 +7,8 @@ import Spinner from '@/components/Spinner';
 import { TableRowsSkeleton } from '@/components/Skeleton';
 import Dropdown from '@/components/Dropdown';
 import { SearchIcon, ClockIcon, PersonIcon } from '@primer/octicons-react';
-import type { PullDto, PullsResponse } from '@/lib/api-types';
-import { pullStatus } from '@/lib/api-types';
+import type { Pull, PullsResponse } from '@/types/entities';
+import { pullStatus } from '@/types/entities';
 import { PullStatusBadge } from '@/components/StatusBadge';
 import { formatRelativeTime } from '@/lib/format';
 import { useMinerLogin } from '@/lib/use-miner';
@@ -106,7 +106,7 @@ export default function RepoPullsPanel({ owner, name }: { owner: string; name: s
   );
 }
 
-function PullRow({ pr, isLast, mine }: { pr: PullDto; isLast: boolean; mine: boolean }) {
+function PullRow({ pr, isLast, mine }: { pr: Pull; isLast: boolean; mine: boolean }) {
   return (
     <Box
       sx={{

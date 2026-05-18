@@ -20,12 +20,12 @@ import { SearchIcon, RepoIcon, ClockIcon, TriangleUpIcon, TriangleDownIcon } fro
 import { PullStatusBadge } from '@/components/StatusBadge';
 import { formatRelativeTime } from '@/lib/format';
 import { useMinerLogin } from '@/lib/use-miner';
-import type { PullDto } from '@/lib/api-types';
-import { pullStatus } from '@/lib/api-types';
+import type { Pull } from '@/types/entities';
+import { pullStatus } from '@/types/entities';
 import ContentViewer from '@/components/ContentViewer';
 import { useSettings } from '@/lib/settings';
 
-interface MyPullDto extends PullDto {
+interface MyPullDto extends Pull {
   in_whitelist: boolean;
   weight: number | null;
 }

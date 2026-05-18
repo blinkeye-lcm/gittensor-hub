@@ -23,7 +23,7 @@ import {
   TriangleUpIcon,
   TriangleDownIcon,
 } from '@primer/octicons-react';
-import type { IssueDto } from '@/lib/api-types';
+import type { Issue } from '@/types/entities';
 import { IssueStatusBadge } from '@/components/StatusBadge';
 import { formatRelativeTime } from '@/lib/format';
 import { useTrackedRepos } from '@/lib/tracked-repos';
@@ -48,7 +48,7 @@ const STATE_OPTS: { id: StateFilter; label: string }[] = [
 interface IssuesResp {
   count: number;
   repo_count: number;
-  issues: IssueDto[];
+  issues: Issue[];
 }
 
 const PAGE_INCREMENT = 50;
@@ -63,14 +63,14 @@ export default function IssuesTable() {
   const [visibleCount, setVisibleCount] = useState(PAGE_INCREMENT);
   const [authorFilter, setAuthorFilter] = useState<string>('all');
   const [closeFilter, setCloseFilter] = useState<CloseFilter>('all');
-  const [openIssue, setOpenIssue] = useState<IssueDto | null>(null);
+  const [openIssue, setOpenIssue] = useState<Issue | null>(null);
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   const { settings } = useSettings();
   const { tracked, toggle: toggleTrack } = useTrackedRepos();
 
-  const handleRowClick = (issue: IssueDto) => {
+  const handleRowClick = (issue: Issue) => {
     if (settings.contentDisplay === 'modal' || settings.contentDisplay === 'side') {
       setOpenIssue(issue);
     } else {
@@ -491,7 +491,7 @@ function IssueTableRow({
   onRowClick,
   expanded,
 }: {
-  issue: IssueDto;
+  issue: Issue;
   tracked: boolean;
   onToggleTrack: () => void;
   onRowClick?: () => void;
