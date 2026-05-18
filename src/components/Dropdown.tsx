@@ -129,6 +129,7 @@ export default function Dropdown<T extends string>({
         placement={align === 'right' ? 'bottom-end' : 'bottom-start'}
         minWidth={minWidth}
         preferredMaxHeight={360}
+        heightEstimate={options.length * 32 + 12}
         role="listbox"
         style={{ fontSize: 14 }}
       >

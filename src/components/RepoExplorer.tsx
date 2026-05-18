@@ -3508,6 +3508,7 @@ function RelatedItemsCell({
         placement="bottom-end"
         widthEstimate={280}
         preferredMaxHeight={480}
+        heightEstimate={36 + count * 32}
         role="listbox"
         style={{ minWidth: 280, maxWidth: 360, textAlign: 'left' }}
       >
@@ -3573,20 +3574,7 @@ function RelatedPRsCell({
               onMouseLeave={unhighlightRelatedRow}
               style={relatedPopoverRowStyle}
             >
-              {pr.author_login ? (
-                <span style={relatedPopoverAuthorStyle}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={`https://github.com/${pr.author_login}.png?size=32`}
-                    alt={pr.author_login}
-                    loading="lazy"
-                    style={{ width: 16, height: 16, borderRadius: '50%', border: '1px solid var(--border-muted)', display: 'block', flexShrink: 0 }}
-                  />
-                  <span style={relatedPopoverAuthorTextStyle}>{pr.author_login}</span>
-                </span>
-              ) : (
-                <GitPullRequestIcon size={12} />
-              )}
+              {pr.author_login ? <PopoverAuthor login={pr.author_login} /> : <GitPullRequestIcon size={12} />}
               <span style={{ ...relatedPopoverStatusTextStyle, color: statusColor }}>{status}</span>
               <span style={relatedPopoverTitleStyle}>#{pr.number} {pr.title}</span>
             </button>
@@ -3649,18 +3637,7 @@ function RelatedIssuesCell({
               <span style={{ color: statusColor, display: 'inline-flex', flexShrink: 0 }}>
                 <StatusIcon size={12} />
               </span>
-              {iss.author_login && (
-                <span style={relatedPopoverAuthorStyle}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={`https://github.com/${iss.author_login}.png?size=32`}
-                    alt={iss.author_login}
-                    loading="lazy"
-                    style={{ width: 16, height: 16, borderRadius: '50%', border: '1px solid var(--border-muted)', display: 'block', flexShrink: 0 }}
-                  />
-                  <span style={relatedPopoverAuthorTextStyle}>{iss.author_login}</span>
-                </span>
-              )}
+              {iss.author_login && <PopoverAuthor login={iss.author_login} />}
               <span style={relatedPopoverTitleStyle}>#{iss.number} {iss.title}</span>
             </button>
           );
@@ -3685,23 +3662,40 @@ const relatedPopoverRowStyle: React.CSSProperties = {
   cursor: 'pointer',
 };
 
-const relatedPopoverAuthorStyle: React.CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: 4,
-  flexShrink: 0,
-  minWidth: 0,
-  maxWidth: 110,
-};
-
-const relatedPopoverAuthorTextStyle: React.CSSProperties = {
-  color: 'var(--fg-default)',
-  fontSize: 12,
-  fontWeight: 500,
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
-};
+function PopoverAuthor({ login }: { login: string }) {
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 4,
+        flexShrink: 0,
+        minWidth: 0,
+        maxWidth: 110,
+      }}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={`https://github.com/${login}.png?size=32`}
+        alt={login}
+        loading="lazy"
+        style={{ width: 16, height: 16, borderRadius: '50%', border: '1px solid var(--border-muted)', display: 'block', flexShrink: 0 }}
+      />
+      <span
+        style={{
+          color: 'var(--fg-default)',
+          fontSize: 12,
+          fontWeight: 500,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {login}
+      </span>
+    </span>
+  );
+}
 
 const relatedPopoverStatusTextStyle: React.CSSProperties = {
   fontSize: 12,

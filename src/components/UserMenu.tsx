@@ -201,6 +201,7 @@ export default function UserMenu({ maxWidth }: { maxWidth?: number | string } = 
         placement="bottom-auto"
         width={280}
         preferredMaxHeight={600}
+        heightEstimate={320}
         offset={6}
         role="menu"
         style={{ fontSize: 14 }}

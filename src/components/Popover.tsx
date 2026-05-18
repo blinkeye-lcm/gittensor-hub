@@ -38,8 +38,6 @@ export interface UsePopoverPositionOpts {
    *  estimates. */
   menuRef?: RefObject<HTMLElement | null>;
   placement?: Placement;
-  /** Disable vertical flip. Default true. */
-  autoFlip?: boolean;
   /** Pins the popover to this width. Takes precedence over `minWidth`. */
   width?: number;
   /** Floor the popover width to `max(anchor.width, minWidth)`. */
@@ -51,15 +49,15 @@ export interface UsePopoverPositionOpts {
   widthEstimate?: number;
   /** Target maximum height — clamped to available viewport space. */
   preferredMaxHeight?: number;
+  /** Expected popover height used by the flip decision before the menu has
+   *  been measured. Lets callers that know their content height (e.g. row
+   *  count × row height) avoid a first-frame flip when the trigger sits in
+   *  the lower half of the viewport. Falls back to `preferredMaxHeight`. */
+  heightEstimate?: number;
   /** Gap (px) between trigger and popover. */
   offset?: number;
   /** Minimum margin (px) to the viewport edges. */
   viewportPadding?: number;
-}
-
-function splitPlacement(p: Placement): ['top' | 'bottom', 'start' | 'end' | 'auto'] {
-  const [v, s] = p.split('-') as ['top' | 'bottom', 'start' | 'end' | 'auto'];
-  return [v, s];
 }
 
 /** Compute viewport-aware coordinates for a popover anchored to a trigger
@@ -69,11 +67,11 @@ export function usePopoverPosition({
   anchorRef,
   menuRef,
   placement = 'bottom-start',
-  autoFlip = true,
   width: fixedWidth,
   minWidth,
   widthEstimate,
   preferredMaxHeight = 360,
+  heightEstimate,
   offset = 4,
   viewportPadding = 8,
 }: UsePopoverPositionOpts): PopoverCoords | null {
@@ -94,7 +92,7 @@ export function usePopoverPosition({
       width = Math.max(r.width, minWidth);
     }
 
-    const [vert, side] = splitPlacement(placement);
+    const [vert, side] = placement.split('-') as ['top' | 'bottom', 'start' | 'end' | 'auto'];
     const horizSide: 'start' | 'end' =
       side === 'auto'
         ? (r.left + r.right) / 2 < vw / 2
@@ -108,35 +106,21 @@ export function usePopoverPosition({
     if (left + renderedWidth > vw - pad) left = Math.max(pad, vw - renderedWidth - pad);
     if (left < pad) left = pad;
 
-    const measuredHeight = menuRef?.current?.offsetHeight;
-    const naturalHeight = Math.min(preferredMaxHeight, measuredHeight ?? preferredMaxHeight);
+    const naturalHeight = Math.min(
+      preferredMaxHeight,
+      menuRef?.current?.offsetHeight ?? heightEstimate ?? Infinity,
+    );
     const spaceBelow = vh - r.bottom - pad;
     const spaceAbove = r.top - pad;
+    const requestedBelow = vert === 'bottom';
+    const requestedSpace = requestedBelow ? spaceBelow : spaceAbove;
+    const otherSpace = requestedBelow ? spaceAbove : spaceBelow;
+    // Flip only when the requested side is too small AND the other side is roomier.
+    const flipped = requestedSpace < naturalHeight && otherSpace > requestedSpace;
+    const placeBelow = flipped ? !requestedBelow : requestedBelow;
 
-    // `placeBelow` is the final side the popover lands on, after considering
-    // both the requested placement and any auto-flip. `flipped` is reported
-    // separately so callers can tell whether the result differs from request.
-    let placeBelow: boolean;
-    if (!autoFlip) {
-      placeBelow = vert === 'bottom';
-    } else if (vert === 'bottom') {
-      const flip = spaceBelow < naturalHeight && spaceAbove > spaceBelow;
-      placeBelow = !flip;
-    } else {
-      const flip = spaceAbove < naturalHeight && spaceBelow > spaceAbove;
-      placeBelow = flip;
-    }
-    const flipped = placeBelow !== (vert === 'bottom');
-
-    let top: number;
-    let maxHeight: number;
-    if (placeBelow) {
-      top = r.bottom + offset;
-      maxHeight = Math.min(preferredMaxHeight, Math.max(0, spaceBelow));
-    } else {
-      maxHeight = Math.min(preferredMaxHeight, Math.max(0, spaceAbove));
-      top = r.top - offset - maxHeight;
-    }
+    const maxHeight = Math.min(preferredMaxHeight, Math.max(0, placeBelow ? spaceBelow : spaceAbove));
+    const top = placeBelow ? r.bottom + offset : r.top - offset - maxHeight;
 
     setCoords({
       top,
@@ -150,11 +134,11 @@ export function usePopoverPosition({
     anchorRef,
     menuRef,
     placement,
-    autoFlip,
     fixedWidth,
     minWidth,
     widthEstimate,
     preferredMaxHeight,
+    heightEstimate,
     offset,
     viewportPadding,
   ]);
@@ -191,8 +175,6 @@ export interface PopoverProps
   style?: React.CSSProperties;
   /** Stacking layer. Defaults to 9500 — above app chrome, below toasts. */
   zIndex?: number;
-  /** Skip the default chrome and just position + portal the children. */
-  bare?: boolean;
 }
 
 /** Portaled, viewport-aware popover. Renders nothing until `open`. Dismisses
@@ -205,7 +187,6 @@ export function Popover({
   role = 'dialog',
   style,
   zIndex = 9500,
-  bare = false,
   ...positionOpts
 }: PopoverProps) {
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -235,7 +216,7 @@ export function Popover({
 
   if (!mounted || !open || !coords) return null;
 
-  const baseStyle: React.CSSProperties = {
+  const panelStyle: React.CSSProperties = {
     position: 'fixed',
     top: coords.top,
     left: coords.left,
@@ -243,24 +224,20 @@ export function Popover({
     maxHeight: coords.maxHeight,
     zIndex,
     transformOrigin: coords.transformOrigin,
+    background: 'var(--bg-subtle)',
+    border: '1px solid var(--border-default)',
+    borderRadius: 6,
+    boxShadow: 'var(--shadow-overlay)',
+    overflow: 'hidden',
+    display: 'flex',
+    flexDirection: 'column',
+    fontFamily: 'inherit',
+    color: 'var(--fg-default)',
+    ...style,
   };
-  const chromeStyle: React.CSSProperties = bare
-    ? baseStyle
-    : {
-        ...baseStyle,
-        background: 'var(--bg-subtle)',
-        border: '1px solid var(--border-default)',
-        borderRadius: 6,
-        boxShadow: 'var(--shadow-overlay)',
-        overflow: 'hidden',
-        display: 'flex',
-        flexDirection: 'column',
-        fontFamily: 'inherit',
-        color: 'var(--fg-default)',
-      };
 
   return createPortal(
-    <div ref={menuRef} role={role} style={{ ...chromeStyle, ...style }}>
+    <div ref={menuRef} role={role} style={panelStyle}>
       {children}
     </div>,
     document.body,
