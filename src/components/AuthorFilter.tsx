@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { TriangleDownIcon, CheckIcon, SearchIcon } from '@primer/octicons-react';
+import { Popover } from '@/components/Popover';
 
 export interface AuthorOption {
   login: string;
@@ -49,10 +49,7 @@ export default function AuthorFilter({
 }: AuthorFilterProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
-  const [coords, setCoords] = useState<{ top: number; left: number; width: number; flipped: boolean; maxHeight: number } | null>(null);
-  const [mounted, setMounted] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
@@ -65,68 +62,14 @@ export default function AuthorFilter({
     if (listRef.current) listRef.current.scrollTop = 0;
   }, [open, search]);
 
-  useEffect(() => setMounted(true), []);
-
   useEffect(() => {
-    if (open) onOpen?.();
+    if (open) {
+      onOpen?.();
+      // Tiny defer so the popover has rendered before focus moves.
+      const t = window.setTimeout(() => inputRef.current?.focus(), 30);
+      return () => window.clearTimeout(t);
+    }
   }, [open, onOpen]);
-
-  useLayoutEffect(() => {
-    if (!open || !triggerRef.current) return;
-    const update = () => {
-      const r = triggerRef.current!.getBoundingClientRect();
-      const w = Math.max(width, r.width, 240);
-      const viewportW = window.innerWidth;
-      const viewportH = window.innerHeight;
-      let left = align === 'right' ? r.right - w : r.left;
-      if (left + w > viewportW - 8) left = Math.max(8, viewportW - w - 8);
-      if (left < 8) left = 8;
-
-      const desired = 380;
-      const spaceBelow = viewportH - r.bottom - 8;
-      const spaceAbove = r.top - 8;
-      let top: number;
-      let maxHeight: number;
-      let flipped = false;
-      if (spaceBelow >= desired || spaceBelow >= spaceAbove) {
-        top = r.bottom + 4;
-        maxHeight = Math.min(desired, spaceBelow);
-      } else {
-        const usable = Math.min(desired, spaceAbove);
-        top = r.top - 4 - usable;
-        maxHeight = usable;
-        flipped = true;
-      }
-      setCoords({ top, left, width: w, flipped, maxHeight });
-    };
-    update();
-    window.addEventListener('resize', update);
-    window.addEventListener('scroll', update, true);
-    return () => {
-      window.removeEventListener('resize', update);
-      window.removeEventListener('scroll', update, true);
-    };
-  }, [open, width, align]);
-
-  useEffect(() => {
-    if (!open) return;
-    setTimeout(() => inputRef.current?.focus(), 30);
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
-    const onClick = (e: MouseEvent) => {
-      const t = e.target as Node;
-      if (menuRef.current?.contains(t)) return;
-      if (triggerRef.current?.contains(t)) return;
-      setOpen(false);
-    };
-    document.addEventListener('keydown', onKey);
-    document.addEventListener('mousedown', onClick);
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      document.removeEventListener('mousedown', onClick);
-    };
-  }, [open]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -197,90 +140,76 @@ export default function AuthorFilter({
         <TriangleDownIcon size={12} />
       </button>
 
-      {mounted && open && coords &&
-        createPortal(
-          <div
-            ref={menuRef}
+      <Popover
+        open={open}
+        onClose={() => setOpen(false)}
+        anchorRef={triggerRef}
+        placement={align === 'right' ? 'bottom-end' : 'bottom-start'}
+        minWidth={Math.max(width, 240)}
+        preferredMaxHeight={380}
+        role="listbox"
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '8px 10px',
+            borderBottom: '1px solid var(--border-muted)',
+          }}
+        >
+          <SearchIcon size={12} />
+          <input
+            ref={inputRef}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Filter authors…"
             style={{
-              position: 'fixed',
-              top: coords.top,
-              left: coords.left,
-              width: coords.width,
-              maxHeight: coords.maxHeight,
-              background: 'var(--bg-subtle)',
-              border: '1px solid var(--border-default)',
-              borderRadius: 6,
-              boxShadow: 'var(--shadow-overlay)',
-              zIndex: 9500,
-              display: 'flex',
-              flexDirection: 'column',
-              overflow: 'hidden',
+              flex: 1,
+              background: 'transparent',
+              border: 'none',
+              outline: 'none',
+              color: 'var(--fg-default)',
+              fontSize: 13,
               fontFamily: 'inherit',
             }}
-          >
-            <div
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '8px 10px',
-                borderBottom: '1px solid var(--border-muted)',
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--fg-muted)',
+                cursor: 'pointer',
+                fontSize: 12,
               }}
             >
-              <SearchIcon size={12} />
-              <input
-                ref={inputRef}
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Filter authors…"
-                style={{
-                  flex: 1,
-                  background: 'transparent',
-                  border: 'none',
-                  outline: 'none',
-                  color: 'var(--fg-default)',
-                  fontSize: 13,
-                  fontFamily: 'inherit',
-                }}
-              />
-              {search && (
-                <button
-                  type="button"
-                  onClick={() => setSearch('')}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: 'var(--fg-muted)',
-                    cursor: 'pointer',
-                    fontSize: 12,
-                  }}
-                >
-                  ×
-                </button>
-              )}
-            </div>
-            <VirtualList
-              listRef={listRef}
-              onScroll={setScrollTop}
-              scrollTop={scrollTop}
-              items={filtered}
-              extras={search.trim() ? [] : extraOptions}
-              loading={loading}
-              isFiltered={isFiltered}
-              total={displayTotal}
-              value={value}
-              onPickAll={() => {
-                onChange('all');
-                setOpen(false);
-              }}
-              onPick={(login) => {
-                onChange(login);
-                setOpen(false);
-              }}
-            />
-          </div>,
-          document.body
-        )}
+              ×
+            </button>
+          )}
+        </div>
+        <VirtualList
+          listRef={listRef}
+          onScroll={setScrollTop}
+          scrollTop={scrollTop}
+          items={filtered}
+          extras={search.trim() ? [] : extraOptions}
+          loading={loading}
+          isFiltered={isFiltered}
+          total={displayTotal}
+          value={value}
+          onPickAll={() => {
+            onChange('all');
+            setOpen(false);
+          }}
+          onPick={(login) => {
+            onChange(login);
+            setOpen(false);
+          }}
+        />
+      </Popover>
     </>
   );
 }

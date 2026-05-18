@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useRef, useState } from 'react';
 import { TriangleDownIcon, CheckIcon } from '@primer/octicons-react';
+import { Popover } from '@/components/Popover';
 
 export interface DropdownOption<T extends string> {
   value: T;
@@ -41,77 +41,13 @@ export default function Dropdown<T extends string>({
   leadingVisual,
 }: DropdownProps<T>) {
   const [open, setOpen] = useState(false);
-  const [coords, setCoords] = useState<{ top: number; left: number; width: number; maxHeight: number; flipped: boolean } | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const [mounted, setMounted] = useState(false);
 
-  useEffect(() => setMounted(true), []);
-
-  useLayoutEffect(() => {
-    if (!open || !triggerRef.current) return;
-    const update = () => {
-      const r = triggerRef.current!.getBoundingClientRect();
-      // Auto-size: pick the larger of trigger width, requested width, or content min
-      const requested = typeof width === 'number' ? width : 0;
-      const contentMin = Math.max(...options.map((o) => approxOptionWidth(o.label, o.hint)));
-      const w = Math.max(r.width, requested, contentMin);
-      const viewportW = window.innerWidth;
-      const viewportH = window.innerHeight;
-      let left = align === 'right' ? r.right - w : r.left;
-      if (left + w > viewportW - 8) left = Math.max(8, viewportW - w - 8);
-      if (left < 8) left = 8;
-
-      // Calculate vertical placement — open downward by default, flip up
-      // when there isn't enough space below the trigger.
-      const spaceBelow = viewportH - r.bottom - 8;
-      const spaceAbove = r.top - 8;
-      const PREFERRED_MAX = 360;
-      // Natural content height: rows × 36px + 12px padding
-      const natural = Math.min(PREFERRED_MAX, options.length * 36 + 12);
-      let top: number;
-      let maxHeight: number;
-      let flipped: boolean;
-      if (spaceBelow >= natural || spaceBelow >= spaceAbove) {
-        top = r.bottom + 4;
-        maxHeight = Math.min(PREFERRED_MAX, spaceBelow);
-        flipped = false;
-      } else {
-        // Flip upward — bottom edge of menu sits 4px above trigger top.
-        const usableHeight = Math.min(natural, spaceAbove);
-        top = r.top - 4 - usableHeight;
-        maxHeight = usableHeight;
-        flipped = true;
-      }
-      setCoords({ top, left, width: w, maxHeight, flipped });
-    };
-    update();
-    window.addEventListener('resize', update);
-    window.addEventListener('scroll', update, true);
-    return () => {
-      window.removeEventListener('resize', update);
-      window.removeEventListener('scroll', update, true);
-    };
-  }, [open, width, align, options]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
-    const onClick = (e: MouseEvent) => {
-      const t = e.target as Node;
-      if (menuRef.current?.contains(t)) return;
-      if (triggerRef.current?.contains(t)) return;
-      setOpen(false);
-    };
-    document.addEventListener('keydown', onKey);
-    document.addEventListener('mousedown', onClick);
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      document.removeEventListener('mousedown', onClick);
-    };
-  }, [open]);
+  // Reserve enough width for the longest option's label + hint so options
+  // don't get squished when the trigger itself is narrow.
+  const requested = typeof width === 'number' ? width : 0;
+  const contentMin = Math.max(...options.map((o) => approxOptionWidth(o.label, o.hint)));
+  const minWidth = Math.max(requested, contentMin);
 
   const current = options.find((o) => o.value === value);
   const height = size === 'small' ? 28 : 32;
@@ -186,97 +122,84 @@ export default function Dropdown<T extends string>({
         </span>
       </button>
 
-      {mounted && open && coords &&
-        createPortal(
-          <div
-            ref={menuRef}
-            role="listbox"
-            style={{
-              position: 'fixed',
-              top: coords.top,
-              left: coords.left,
-              width: coords.width,
-              maxHeight: coords.maxHeight,
-              overflowY: 'auto',
-              background: 'var(--bg-subtle)',
-              border: '1px solid var(--border-default)',
-              borderRadius: 6,
-              boxShadow: 'var(--shadow-overlay)',
-              zIndex: 9500,
-              padding: '6px 0',
-              fontSize: 14,
-              color: 'var(--fg-default)',
-              transformOrigin: coords.flipped ? 'bottom' : 'top',
-            }}
-          >
-            {options.map((opt) => {
-              const selected = opt.value === value;
-              return (
-                <button
-                  key={opt.value}
-                  type="button"
-                  role="option"
-                  aria-selected={selected}
-                  onClick={() => {
-                    onChange(opt.value);
-                    setOpen(false);
-                  }}
+      <Popover
+        open={open}
+        onClose={() => setOpen(false)}
+        anchorRef={triggerRef}
+        placement={align === 'right' ? 'bottom-end' : 'bottom-start'}
+        minWidth={minWidth}
+        preferredMaxHeight={360}
+        role="listbox"
+        style={{ fontSize: 14 }}
+      >
+        <div style={{ overflowY: 'auto', padding: '6px 0' }}>
+          {options.map((opt) => {
+            const selected = opt.value === value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                role="option"
+                aria-selected={selected}
+                onClick={() => {
+                  onChange(opt.value);
+                  setOpen(false);
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  width: '100%',
+                  padding: '6px 12px',
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'inherit',
+                  fontSize: 'inherit',
+                  fontFamily: 'inherit',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  lineHeight: '20px',
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background = 'var(--menu-item-hover-bg)';
+                  (e.currentTarget as HTMLButtonElement).style.color = 'var(--menu-item-hover-fg)';
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+                  (e.currentTarget as HTMLButtonElement).style.color = 'inherit';
+                }}
+              >
+                <span style={{ width: 16, flexShrink: 0, display: 'inline-flex', alignItems: 'center', color: 'var(--selected-check)' }}>
+                  {selected ? <CheckIcon size={14} /> : null}
+                </span>
+                <span
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    width: '100%',
-                    padding: '6px 12px',
-                    background: 'transparent',
-                    border: 'none',
-                    color: 'inherit',
-                    fontSize: 'inherit',
-                    fontFamily: 'inherit',
-                    textAlign: 'left',
-                    cursor: 'pointer',
-                    lineHeight: '20px',
-                  }}
-                  onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.background = 'var(--menu-item-hover-bg)';
-                    (e.currentTarget as HTMLButtonElement).style.color = 'var(--menu-item-hover-fg)';
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
-                    (e.currentTarget as HTMLButtonElement).style.color = 'inherit';
+                    flex: 1,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
                   }}
                 >
-                  <span style={{ width: 16, flexShrink: 0, display: 'inline-flex', alignItems: 'center', color: 'var(--selected-check)' }}>
-                    {selected ? <CheckIcon size={14} /> : null}
-                  </span>
+                  {opt.label}
+                </span>
+                {opt.hint && (
                   <span
                     style={{
-                      flex: 1,
+                      color: 'var(--fg-muted)',
+                      fontSize: 12,
+                      marginLeft: 12,
                       whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
+                      flexShrink: 0,
                     }}
                   >
-                    {opt.label}
+                    {opt.hint}
                   </span>
-                  {opt.hint && (
-                    <span
-                      style={{
-                        color: 'var(--fg-muted)',
-                        fontSize: 12,
-                        marginLeft: 12,
-                        whiteSpace: 'nowrap',
-                        flexShrink: 0,
-                      }}
-                    >
-                      {opt.hint}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>,
-          document.body
-        )}
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </Popover>
     </>
   );
 }
