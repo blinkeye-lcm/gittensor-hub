@@ -312,6 +312,7 @@ reward share = PR share x effective repo PR reward pool`}</Pre>
                 <Li><strong>State filter</strong>: All / Open / Completed / Not planned / Closed (other)</Li>
                 <Li><strong>Author filter</strong>: searchable combobox with avatars + per-author counts</Li>
                 <Li><strong>Tracked only</strong>: limits results to repos you've starred; row stars update that watchlist</Li>
+                <Li><strong>My Issues only</strong>: limits results to issues opened by the signed-in user (URL-synced via <Code>?mine=1</Code>)</Li>
                 <Li><strong>Linked PRs</strong>: PR count chips open the related pull requests for each issue</Li>
                 <Li><strong>Author activity</strong>: click an author to open their repo-scoped activity sidebar</Li>
                 <Li><strong>Sorting</strong>: server-backed sorting on Repository, Weight, Comments, Opened, and Closed</Li>

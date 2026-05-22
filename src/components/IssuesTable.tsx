@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import {
   Box,
@@ -30,6 +31,7 @@ import { IssueStatusBadge } from '@/components/StatusBadge';
 import { formatRelativeTime, isRecent } from '@/lib/format';
 import { useTrackedRepos } from '@/lib/tracked-repos';
 import ContentViewer from '@/components/ContentViewer';
+import { useMinerLogin } from '@/lib/use-miner';
 import { useSettings } from '@/lib/settings';
 import { useSn74Repos, lookupWeight } from '@/lib/use-sn74-repos';
 import { InlinePagination as TablePagination } from '@/components/repo-explorer/Pagination';
@@ -82,12 +84,19 @@ const issueRowCellSx = {
 const EMPTY_PRS: LinkedPull[] = [];
 
 export default function IssuesTable() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const me = useMinerLogin();
+  const mineOnlyFromUrl = searchParams.get('mine') === '1' || searchParams.get('mine') === 'true';
+
   const { repos: sn74Repos, weights: repoWeights, isSuccess: sn74ReposReady } = useSn74Repos();
   const [query, setQuery] = useState('');
   const [stateFilter, setStateFilter] = useState<StateFilter>('all');
   const [sortKey, setSortKey] = useState<SortKey>('opened');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [trackedOnly, setTrackedOnly] = useState(false);
+  const [mineOnly, setMineOnly] = useState(mineOnlyFromUrl);
   const [page, setPage] = useState(1);
   const [authorFilter, setAuthorFilter] = useState<string>('all');
   const [openIssue, setOpenIssue] = useState<Issue | null>(null);
@@ -98,6 +107,25 @@ export default function IssuesTable() {
   const { settings, update } = useSettings();
   const { tracked, toggle: toggleTrackedRepo } = useTrackedRepos();
   const pageSize = settings.pageSize > 0 ? settings.pageSize : 50;
+
+  useEffect(() => {
+    setMineOnly(mineOnlyFromUrl);
+  }, [mineOnlyFromUrl]);
+
+  const setMineOnlyWithUrl = useCallback(
+    (next: boolean) => {
+      setMineOnly(next);
+      const sp = new URLSearchParams(searchParams.toString());
+      if (next) {
+        sp.set('mine', '1');
+      } else {
+        sp.delete('mine');
+      }
+      const qs = sp.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
 
   const { data: userReposData, isSuccess: userReposReady } = useQuery<UserReposResp>({
     queryKey: ['user-repos'],
@@ -202,6 +230,7 @@ export default function IssuesTable() {
     }
   };
 
+  const authorParam = mineOnly ? me || '__signed_out__' : authorFilter;
   const issuesParams = useMemo(() => {
     const sp = new URLSearchParams();
     sp.set('page', String(page));
@@ -210,10 +239,10 @@ export default function IssuesTable() {
     sp.set('dir', sortDir);
     if (query.trim()) sp.set('q', query.trim());
     if (stateFilter !== 'all') sp.set('state', stateFilter);
-    if (authorFilter !== 'all') sp.set('author', authorFilter);
+    if (authorParam !== 'all') sp.set('author', authorParam);
     if (trackedRepoParam !== null) sp.set('repos', trackedRepoParam);
     return sp.toString();
-  }, [authorFilter, page, pageSize, query, sortDir, sortKey, stateFilter, trackedRepoParam]);
+  }, [authorParam, page, pageSize, query, sortDir, sortKey, stateFilter, trackedRepoParam]);
 
   const { data, isLoading, isFetching } = useQuery<IssuesResp>({
     queryKey: ['all-issues', issuesParams],
@@ -230,11 +259,12 @@ export default function IssuesTable() {
   const totalPages = data?.total_pages ?? page;
   const safePage = Math.min(page, totalPages);
   const authorOptions = data?.authors ?? [];
+  const myCount = authorOptions.find((a) => a.login.toLowerCase() === me.toLowerCase())?.count ?? 0;
 
   // Reset to the first page when the server-side result set changes.
   useEffect(() => {
     setPage(1);
-  }, [query, stateFilter, sortKey, sortDir, trackedOnly, trackedRepoParam, authorFilter, pageSize]);
+  }, [query, stateFilter, sortKey, sortDir, trackedOnly, trackedRepoParam, authorParam, pageSize]);
 
   useEffect(() => {
     if (data && page > data.total_pages) setPage(data.total_pages);
@@ -280,30 +310,20 @@ export default function IssuesTable() {
             width={180}
             ariaLabel="Filter by state"
           />
-          <Box
+          <ToggleButton
+            active={trackedOnly}
             onClick={() => setTrackedOnly((v) => !v)}
-            sx={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 1,
-              px: '12px',
-              py: '5px',
-              borderRadius: '6px',
-              border: '1px solid',
-              borderColor: trackedOnly ? 'var(--attention-emphasis)' : 'var(--border-default)',
-              bg: trackedOnly ? 'var(--attention-subtle, rgba(242, 201, 76, 0.14))' : 'var(--bg-emphasis)',
-              color: trackedOnly ? 'var(--attention-emphasis)' : 'var(--fg-default)',
-              cursor: 'pointer',
-              fontSize: '14px',
-              fontWeight: 500,
-              lineHeight: '20px',
-              userSelect: 'none',
-              '&:hover': { borderColor: 'var(--border-strong)' },
-            }}
+            icon={trackedOnly ? <StarFillIcon size={14} /> : <StarIcon size={14} />}
           >
-            {trackedOnly ? <StarFillIcon size={14} /> : <StarIcon size={14} />}
             Tracked only ({scopedTracked.length})
-          </Box>
+          </ToggleButton>
+          <ToggleButton
+            active={mineOnly}
+            onClick={() => setMineOnlyWithUrl(!mineOnly)}
+            tone="attention"
+          >
+            My Issues only{myCount > 0 ? ` (${myCount})` : ''}
+          </ToggleButton>
         </Box>
 
         <Box
@@ -357,10 +377,13 @@ export default function IssuesTable() {
               <HeaderCell label="Repository" onClick={() => toggleSort('repo')} active={sortKey === 'repo'} dir={sortDir} />
               <Box as="th" sx={{ ...headerCellSx, py: '4px' }}>
                 <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
-                  <Box sx={{ color: authorFilter !== 'all' ? 'accent.fg' : 'inherit' }}>Author</Box>
+                  <Box sx={{ color: authorFilter !== 'all' && !mineOnly ? 'accent.fg' : 'inherit' }}>Author</Box>
                   <AuthorFilter
-                    value={authorFilter}
-                    onChange={setAuthorFilter}
+                    value={mineOnly ? me || 'all' : authorFilter}
+                    onChange={(next) => {
+                      setMineOnlyWithUrl(false);
+                      setAuthorFilter(next);
+                    }}
                     authors={authorOptions}
                     totalAuthors={data?.author_count ?? authorOptions.length}
                     width={260}
@@ -414,6 +437,7 @@ export default function IssuesTable() {
                 <React.Fragment key={k}>
                   <IssueTableRow
                     issue={issue}
+                    mine={!!me && issue.author_login?.toLowerCase() === me.toLowerCase()}
                     tracked={scopedTrackedSet.has(issue.repo_full_name.toLowerCase())}
                     onToggleTrack={() => toggleTrackedRepo(issue.repo_full_name)}
                     onRowClick={() => handleRowClick(issue)}
@@ -586,6 +610,51 @@ export default function IssuesTable() {
   );
 }
 
+function ToggleButton({
+  active,
+  onClick,
+  children,
+  icon,
+  tone = 'accent',
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+  icon?: React.ReactNode;
+  tone?: 'accent' | 'attention';
+}) {
+  const emphasis = tone === 'attention' ? 'var(--attention-emphasis)' : 'var(--accent-emphasis)';
+  const subtle = tone === 'attention' ? 'var(--attention-subtle, rgba(242, 201, 76, 0.14))' : 'var(--accent-subtle)';
+  return (
+    <Box
+      as="button"
+      type="button"
+      onClick={onClick}
+      sx={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 1,
+        px: '12px',
+        py: '5px',
+        borderRadius: '6px',
+        border: '1px solid',
+        borderColor: active ? emphasis : 'var(--border-default)',
+        bg: active ? subtle : 'var(--bg-emphasis)',
+        color: active ? emphasis : 'var(--fg-default)',
+        cursor: 'pointer',
+        fontSize: '14px',
+        fontWeight: 500,
+        lineHeight: '20px',
+        userSelect: 'none',
+        '&:hover': { borderColor: 'var(--border-strong)' },
+      }}
+    >
+      {icon}
+      {children}
+    </Box>
+  );
+}
+
 const headerCellSx = {
   p: 2,
   textAlign: 'left' as const,
@@ -633,6 +702,7 @@ function HeaderCell({
 function IssueTableRow({
   weight,
   issue,
+  mine,
   tracked,
   onToggleTrack,
   onRowClick,
@@ -642,6 +712,7 @@ function IssueTableRow({
   expanded,
 }: {
   issue: AggIssue;
+  mine: boolean;
   tracked: boolean;
   onToggleTrack?: () => void;
   onRowClick?: () => void;
@@ -786,7 +857,7 @@ function IssueTableRow({
             <Text
               sx={{
                 fontWeight: 500,
-                color: 'fg.default',
+                color: mine ? 'var(--attention-emphasis)' : 'fg.default',
                 minWidth: 0,
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',

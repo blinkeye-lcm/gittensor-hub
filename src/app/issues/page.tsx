@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic';
 
-import React from 'react';
+import React, { Suspense } from 'react';
 import { Box, PageLayout, Heading, Text } from '@primer/react';
 import IssuesTable from '@/components/IssuesTable';
 
@@ -21,7 +21,9 @@ export default function IssuesPage() {
         </Box>
       </PageLayout.Header>
       <PageLayout.Content>
-        <IssuesTable />
+        <Suspense fallback={null}>
+          <IssuesTable />
+        </Suspense>
       </PageLayout.Content>
     </PageLayout>
   );
